@@ -13,4 +13,4 @@
 ## **What's next for logicSolverGo**
 
 ## License
-[Version 3 of the AGPL](COPYING) or any later version
+[Version 3 of the AGPL](COPYING.md) or any later version
