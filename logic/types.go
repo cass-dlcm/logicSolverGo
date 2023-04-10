@@ -16,6 +16,7 @@ Copyright (C) 2023  Cassandra de la Cruz-Munoz <me@cass-dlcm.dev>
         along with this program.  If not, see <https://www.gnu.org/licenses/>;.
 */
 
+// Package logic implements the functionality of the library.
 package logic
 
 import (
@@ -24,16 +25,22 @@ import (
 	"reflect"
 )
 
+// Component is an interface listing the common functionality of what all logical components provide.
+// Calculate gives an answer.
+// Analyze generates the truth table.
+// Name identifies the component.
 type Component interface {
 	Calculate() bool
 	Analyze() ([]string, [][]bool, int)
 	Name() string
-	GetChildren() ComponentList
-	SolveChildren(map[string]int, *[]bool) bool
+	getChildren() ComponentList
+	solveChildren(map[string]int, *[]bool) bool
 }
 
+// ComponentList is a slice of Component.
 type ComponentList []Component
 
+// Deduplicate keeps only one of each Component with the same name.
 func (c *ComponentList) Deduplicate() {
 	var tempC ComponentList
 	for i := range *c {
@@ -59,6 +66,7 @@ func (c *ComponentList) Deduplicate() {
 	*c = tempC
 }
 
+// RemoveBoolContainers removes the BoolContainer from the ComponentList, leaving only operations.
 func (c *ComponentList) RemoveBoolContainers() {
 	var tempC ComponentList
 	for i := range *c {
@@ -72,28 +80,32 @@ func (c *ComponentList) RemoveBoolContainers() {
 	*c = tempC
 }
 
+// BoolContainer provides a Component to store bool primitives.
 type BoolContainer struct {
 	Letter string
 	Value  *bool
 }
 
+// Name outputs the label of the BoolContainer.
 func (b BoolContainer) Name() string {
 	return b.Letter
 }
 
+// Calculate simply returns the stored value.
 func (b BoolContainer) Calculate() bool {
 	return *(b.Value)
 }
 
+// Analyze creates a two-row one-column truth table, of false and true.
 func (b BoolContainer) Analyze() ([]string, [][]bool, int) {
 	return []string{b.Letter}, [][]bool{{false}, {true}}, 1
 }
 
-func (b BoolContainer) GetChildren() ComponentList {
+func (b BoolContainer) getChildren() ComponentList {
 	return ComponentList{b}
 }
 
-func (b BoolContainer) SolveChildren(names map[string]int, values *[]bool) bool {
+func (b BoolContainer) solveChildren(names map[string]int, values *[]bool) bool {
 	log.Println(names, len(*values))
 	if names[b.Name()] == 0 {
 		names[b.Name()] = len(names) + 1
@@ -105,17 +117,21 @@ func (b BoolContainer) SolveChildren(names map[string]int, values *[]bool) bool 
 	return (*values)[names[b.Name()]-1]
 }
 
+// UnaryOperator is a number to represent unary operations.
 type UnaryOperator int
 
+// NOT is the UnaryOperator generally represented in code as "!"
 const (
 	NOT UnaryOperator = iota
 )
 
+// UnaryOperation is the Component that uses an UnaryOperator and a single Component.
 type UnaryOperation struct {
 	Operator UnaryOperator
 	Value    Component
 }
 
+// Calculate checks the operator and for NOT, it takes the negation of the [Component.Calculate] function.
 func (u UnaryOperation) Calculate() bool {
 	switch u.Operator {
 	case NOT:
@@ -124,6 +140,7 @@ func (u UnaryOperation) Calculate() bool {
 	return false
 }
 
+// Analyze generates a truth table containing 2^n rows where n is the number of descendent BoolContainer, and the number of columns is the number of unique Component.
 func (u UnaryOperation) Analyze() ([]string, [][]bool, int) {
 	componentTableHeadingA, values, varCount := u.Value.Analyze()
 	componentTableHeadingA = append(componentTableHeadingA, u.Name())
@@ -143,6 +160,7 @@ func (u UnaryOperation) Analyze() ([]string, [][]bool, int) {
 	return componentTableHeadings, values, varCount
 }
 
+// Name recursively constructs the name of the UnaryOperation from the UnaryOperator and child [Component.Name].
 func (u UnaryOperation) Name() string {
 	switch u.Operator {
 	case NOT:
@@ -152,19 +170,19 @@ func (u UnaryOperation) Name() string {
 	return ""
 }
 
-func (u UnaryOperation) GetChildren() ComponentList {
-	children := u.Value.GetChildren()
+func (u UnaryOperation) getChildren() ComponentList {
+	children := u.Value.getChildren()
 	return append(children, u)
 }
 
-func (u UnaryOperation) SolveChildren(names map[string]int, values *[]bool) bool {
+func (u UnaryOperation) solveChildren(names map[string]int, values *[]bool) bool {
 	if names[u.Name()] == 0 {
-		val := u.Value.SolveChildren(names, values)
+		val := u.Value.solveChildren(names, values)
 		u.Value = BoolContainer{u.Value.Name(), &val}
 		names[u.Name()] = len(names) + 1
 		*values = append(*values, u.Calculate())
 	} else if names[u.Name()] >= len(*values) {
-		val := u.Value.SolveChildren(names, values)
+		val := u.Value.solveChildren(names, values)
 		u.Value = BoolContainer{u.Value.Name(), &val}
 		*values = append(*values, u.Calculate())
 	}
@@ -172,19 +190,24 @@ func (u UnaryOperation) SolveChildren(names map[string]int, values *[]bool) bool
 	return (*values)[names[u.Name()]-1]
 }
 
+// BinaryOperator is a number to represent binary operations.
 type BinaryOperator int
 
+// AND is the && BinaryOperator.
+// OR is the || BinaryOperator.
 const (
 	AND BinaryOperator = iota
 	OR
 )
 
+// BinaryOperation is the Component that uses a BinaryOperator and a pair of Component.
 type BinaryOperation struct {
 	ValueA   Component
 	ValueB   Component
 	Operator BinaryOperator
 }
 
+// Calculate returns the calculation of the BinaryOperator with the values of each Component operand.
 func (b BinaryOperation) Calculate() bool {
 	switch b.Operator {
 	case AND:
@@ -195,10 +218,11 @@ func (b BinaryOperation) Calculate() bool {
 	return false
 }
 
+// Analyze generates a truth table consisting of 2^n rows, where n is the number of unique BoolContainer, and m columns where m is the number of unique Component in the list of components.
 func (b BinaryOperation) Analyze() ([]string, [][]bool, int) {
 	var values [][]bool
 	var tempBool bool
-	componentList := b.GetChildren()
+	componentList := b.getChildren()
 	log.Println(componentList)
 	componentList.Deduplicate()
 	log.Println(componentList)
@@ -224,7 +248,7 @@ func (b BinaryOperation) Analyze() ([]string, [][]bool, int) {
 	}
 	log.Println(len(componentTableHeadings))
 	for i := range values {
-		b.SolveChildren(names, &values[i])
+		b.solveChildren(names, &values[i])
 	}
 	log.Println(names)
 	for i, j := range names {
@@ -234,18 +258,18 @@ func (b BinaryOperation) Analyze() ([]string, [][]bool, int) {
 	return componentTableHeadings, values, count
 }
 
-func (b BinaryOperation) SolveChildren(names map[string]int, values *[]bool) bool {
+func (b BinaryOperation) solveChildren(names map[string]int, values *[]bool) bool {
 	if names[b.Name()] == 0 {
-		valA := b.ValueA.SolveChildren(names, values)
+		valA := b.ValueA.solveChildren(names, values)
 		b.ValueA = BoolContainer{b.ValueA.Name(), &valA}
-		valB := b.ValueB.SolveChildren(names, values)
+		valB := b.ValueB.solveChildren(names, values)
 		b.ValueB = BoolContainer{b.ValueB.Name(), &valB}
 		names[b.Name()] = len(names) + 1
 		*values = append(*values, b.Calculate())
 	} else if names[b.Name()] >= len(*values) {
-		valA := b.ValueA.SolveChildren(names, values)
+		valA := b.ValueA.solveChildren(names, values)
 		b.ValueA = BoolContainer{b.ValueA.Name(), &valA}
-		valB := b.ValueB.SolveChildren(names, values)
+		valB := b.ValueB.solveChildren(names, values)
 		b.ValueB = BoolContainer{b.ValueB.Name(), &valB}
 		if names[b.Name()] >= len(*values) {
 			*values = append(*values, b.Calculate())
@@ -257,13 +281,14 @@ func (b BinaryOperation) SolveChildren(names map[string]int, values *[]bool) boo
 	return (*values)[names[b.Name()]-1]
 }
 
-func (b BinaryOperation) GetChildren() ComponentList {
-	childrenA := b.ValueA.GetChildren()
-	childrenB := b.ValueB.GetChildren()
+func (b BinaryOperation) getChildren() ComponentList {
+	childrenA := b.ValueA.getChildren()
+	childrenB := b.ValueB.getChildren()
 	children := append(childrenA, childrenB...)
 	return append(children, b)
 }
 
+// Name recursively constructs the name of the BinaryOperation from the BinaryOperator and the two child [Component.Name].
 func (b BinaryOperation) Name() string {
 	switch b.Operator {
 	case AND:
@@ -274,7 +299,9 @@ func (b BinaryOperation) Name() string {
 	return ""
 }
 
-func RemoveIrrelevantVariables(header []string, values [][]bool, variableCount int) ([]string, [][]bool) {
+// RemoveIrrelevantTerms simplifies a truth table to only all terms that affect the output.
+// Tautologies and contradictions are reduced to a 1x1 [][]bool, containing true for a tautology and false for a contradiction.
+func RemoveIrrelevantTerms(header []string, values [][]bool, variableCount int) ([]string, [][]bool) {
 	log.Println(header, values)
 	i := 0
 	for i < variableCount {

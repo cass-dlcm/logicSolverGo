@@ -27,7 +27,7 @@ func main() {
 	a := true
 	b := false
 	c := false
-	log.Println(logic.RemoveIrrelevantVariables(logic.BinaryOperation{
+	log.Println(logic.RemoveIrrelevantTerms(logic.BinaryOperation{
 		ValueA: logic.UnaryOperation{Operator: logic.NOT, Value: logic.BoolContainer{
 			Letter: "a",
 			Value:  &a,
@@ -40,13 +40,13 @@ func main() {
 				Letter: "b",
 				Value:  &b,
 			}, Operator: logic.AND}, Operator: logic.OR}.Analyze()))
-	log.Println(logic.RemoveIrrelevantVariables(logic.BinaryOperation{
+	log.Println(logic.RemoveIrrelevantTerms(logic.BinaryOperation{
 		ValueA: logic.UnaryOperation{logic.NOT, logic.BoolContainer{
 			"a", &a,
 		}},
 		ValueB:   logic.BoolContainer{"a", &a},
 		Operator: logic.OR}.Analyze()))
-	log.Println(logic.RemoveIrrelevantVariables(logic.BinaryOperation{
+	log.Println(logic.RemoveIrrelevantTerms(logic.BinaryOperation{
 		ValueA: logic.UnaryOperation{logic.NOT, logic.BoolContainer{
 			"a", &a,
 		}},
